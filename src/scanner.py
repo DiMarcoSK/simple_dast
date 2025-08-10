@@ -309,7 +309,7 @@ class VulnerabilityScanner:
         """Run Nuclei vulnerability scan"""
         with Status("Running vulnerability scan with Nuclei...", spinner="dots") as status:
             vulns_dir = os.path.join(self.config.output_dir, "Vulns")
-            nuclei_output = os.path.join(vulns_dir, f"{self.config.target}.nuclei")
+            nuclei_output = os.path.join(vulns_dir, f"{self.config.target}.nuclei.json")
             
             # Build Nuclei command with proper templates path
             severity_flags = f"-severity {','.join(self.config.nuclei_severity)}"
@@ -326,7 +326,7 @@ class VulnerabilityScanner:
                     status.update("Nuclei templates not found, using built-in templates", spinner_style="bold yellow")
                     templates_path = ""
             
-            nuclei_cmd = f"nuclei -l {httpprobe_file} {severity_flags} -o {nuclei_output}"
+            nuclei_cmd = f"nuclei -l {httpprobe_file} {severity_flags} -json -o {nuclei_output}"
             if templates_path:
                 nuclei_cmd += f" -t {templates_path}"
             
@@ -379,7 +379,7 @@ class VulnerabilityScanner:
         
         # Collect vulnerability results
         vulns_dir = os.path.join(self.config.output_dir, "Vulns")
-        nuclei_output = os.path.join(vulns_dir, f"{self.config.target}.nuclei")
+        nuclei_output = os.path.join(vulns_dir, f"{self.config.target}.nuclei.json")
         if os.path.exists(nuclei_output):
             with open(nuclei_output, 'r') as f:
                 for line in f:
