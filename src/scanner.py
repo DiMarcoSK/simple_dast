@@ -10,6 +10,7 @@ import aiohttp
 from rich.status import Status
 
 from config import ScanConfig
+from extended_scanner import ExtendedScanner
 from scan_executor import ScanExecutor
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,7 @@ class VulnerabilityScanner:
     def __init__(self, config: ScanConfig):
         self.config = config
         self.executor = ScanExecutor(config)
+        self.extended_scanner = ExtendedScanner(config, self.executor)
         self.setup_directories()
     
     def setup_directories(self):
@@ -304,7 +306,11 @@ class VulnerabilityScanner:
                 status.update(f"Combined discovery found {len(all_urls)} unique URLs", spinner_style="bold green")
             else:
                 status.update("No URLs discovered from any tool", spinner_style="bold yellow")
-    
+
+    async def run_extended_scan(self, live_hosts_file: str):
+        """Run the extended scanning workflow."""
+        await self.extended_scanner.run_extended_scan(live_hosts_file)
+
     async def run_vulnerability_scan(self, httpprobe_file: str):
         """Run Nuclei vulnerability scan"""
         with Status("Running vulnerability scan with Nuclei...", spinner="dots") as status:
@@ -326,7 +332,7 @@ class VulnerabilityScanner:
                     status.update("Nuclei templates not found, using built-in templates", spinner_style="bold yellow")
                     templates_path = ""
             
-            nuclei_cmd = f"nuclei -l {httpprobe_file} {severity_flags} -json -o {nuclei_output}"
+            nuclei_cmd = f"nuclei -list {httpprobe_file} -s {severity_flags} -json-export {nuclei_output}"
             if templates_path:
                 nuclei_cmd += f" -t {templates_path}"
             
@@ -354,6 +360,7 @@ class VulnerabilityScanner:
                 "subdomains": [],
                 "live_hosts": [],
                 "urls": [],
+                "extended_urls": [],
                 "vulnerabilities": []
             }
         }
@@ -377,6 +384,11 @@ class VulnerabilityScanner:
             with open(urls_file, 'r') as f:
                 report["results"]["urls"] = [line.strip() for line in f if line.strip()]
         
+        extended_urls_file = os.path.join(webapp_dir, f"{self.config.target}.extended_urls")
+        if os.path.exists(extended_urls_file):
+            with open(extended_urls_file, 'r') as f:
+                report["results"]["extended_urls"] = [line.strip() for line in f if line.strip()]
+
         # Collect vulnerability results
         vulns_dir = os.path.join(self.config.output_dir, "Vulns")
         nuclei_output = os.path.join(vulns_dir, f"{self.config.target}.nuclei.json")
@@ -407,6 +419,7 @@ class VulnerabilityScanner:
                 "subdomain_discovery": False,
                 "http_probing": False,
                 "web_content_discovery": False,
+                "extended_scan": False,
                 "vulnerability_scanning": False
             }
             
@@ -445,6 +458,13 @@ class VulnerabilityScanner:
             except Exception as e:
                 logger.warning(f"Web content discovery failed: {e}")
             
+            # Run extended scan
+            try:
+                await self.run_extended_scan(httpprobe_file)
+                scan_phases["extended_scan"] = True
+            except Exception as e:
+                logger.warning(f"Extended scan failed: {e}")
+
             # Run vulnerability scan
             try:
                 await self.run_vulnerability_scan(httpprobe_file)

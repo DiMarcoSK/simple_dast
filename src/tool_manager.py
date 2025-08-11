@@ -70,12 +70,32 @@ class ToolManager:
             "go install github.com/jaeles-project/gospider@latest",
             "gospider -h",
             "Fast web spider"
+        ),
+        "hakrawler": ToolInfo(
+            "hakrawler",
+            "go install github.com/hakluke/hakrawler@latest",
+            "hakrawler -h",
+            "Fast web crawler"
+        ),
+        "waybackurls": ToolInfo(
+            "waybackurls",
+            "go install github.com/tomnomnom/waybackurls@latest",
+            "waybackurls -h",
+            "Fetch URLs from the Wayback Machine"
+        ),
+        "dirsearch": ToolInfo(
+            "dirsearch",
+            "git clone https://github.com/maurosoria/dirsearch.git /tmp/dirsearch && python3 -m pip install -r /tmp/dirsearch/requirements.txt",
+            "/tmp/dirsearch/dirsearch.py -h",
+            "Web path scanner"
         )
     }
     
     @staticmethod
     def check_tool_installed(tool_name: str) -> bool:
         """Check if a tool is installed and accessible"""
+        if tool_name == "dirsearch":
+            return os.path.exists("/tmp/dirsearch/dirsearch.py")
         try:
             # First try using 'which' command
             result = subprocess.run(
@@ -124,7 +144,7 @@ class ToolManager:
                 tool_info.check_command.split(),
                 capture_output=True,
                 text=True,
-                timeout=15,
+                timeout=1200,
                 env=env
             )
             return result.returncode == 0
@@ -153,14 +173,26 @@ class ToolManager:
                 env["PATH"] = path + os.pathsep + env["PATH"]
         
         try:
-            result = subprocess.run(
-                tool_info.install_command.split(),
-                check=True,
-                timeout=300,
-                capture_output=True,
-                text=True,
-                env=env
-            )
+            if tool_info.name == "dirsearch":
+                # Special handling for dirsearch
+                subprocess.run(
+                    tool_info.install_command,
+                    shell=True,
+                    check=True,
+                    timeout=1200,
+                    capture_output=True,
+                    text=True,
+                    env=env
+                )
+            else:
+                result = subprocess.run(
+                    tool_info.install_command.split(),
+                    check=True,
+                    timeout=1200,
+                    capture_output=True,
+                    text=True,
+                    env=env
+                )
             logger.info(f"Successfully installed {tool_info.name}")
             return True
         except subprocess.CalledProcessError as e:
